@@ -17,12 +17,24 @@ public class OrderCommand {
     }
 
     public static OrderCommand newLimit(Side side, long price, long quantity) {
-        return new OrderCommand(OrderType.LIMIT, new Order(side, price, quantity),
+        return newLimit(side, price, quantity, TimeInForce.GTC, 0);
+    }
+
+    public static OrderCommand newLimit(Side side, long price, long quantity,
+                                        TimeInForce timeInForce, long expiryTimestamp) {
+        return new OrderCommand(OrderType.LIMIT,
+                new Order(side, price, quantity, timeInForce, expiryTimestamp),
                 0, 0, 0);
     }
 
     public static OrderCommand newMarket(Side side, long quantity) {
-        return new OrderCommand(OrderType.MARKET, new Order(side, 0, quantity),
+        return newMarket(side, quantity, TimeInForce.GTC, 0);
+    }
+
+    public static OrderCommand newMarket(Side side, long quantity,
+                                         TimeInForce timeInForce, long expiryTimestamp) {
+        return new OrderCommand(OrderType.MARKET,
+                new Order(side, 0, quantity, timeInForce, expiryTimestamp),
                 0, 0, 0);
     }
 

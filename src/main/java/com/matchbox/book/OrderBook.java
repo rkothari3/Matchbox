@@ -3,21 +3,6 @@ package com.matchbox.book;
 import com.matchbox.core.*;
 import java.util.*;
 
-/**
- * Core limit order book with price-time priority matching.
- *
- * Data structure choice: TreeMap<Long, PriceLevel> per side.
- *
- * Why TreeMap over alternatives:
- * - TreeMap: O(log n) price level insert/delete, O(1) best-bid/ask via firstKey(),
- *   maintains sorted order intrinsically. Cache-friendly traversal of price levels.
- * - Skip list: O(log n) expected, but higher constant factors, more pointer chasing.
- * - Array-based: O(n) insert/delete for sparse books, only practical for tight
- *   fixed-price grids. Not suitable for arbitrary price levels.
- *
- * TreeMap gives the best balance of predictable log-time operations, low overhead,
- * and simple correct implementation for a single-threaded matching engine.
- */
 public class OrderBook {
 
     private final TreeMap<Long, PriceLevel> bids;
@@ -43,17 +28,33 @@ public class OrderBook {
     }
 
     private void processLimit(Order taker) {
+        if (taker.getTimeInForce() == TimeInForce.FOK) {
+            long available = taker.getSide() == Side.BUY
+                    ? totalAskQuantityUpTo(taker.getPrice())
+                    : totalBidQuantityDownTo(taker.getPrice());
+            if (available < taker.getQuantity()) return;
+        }
+
         if (taker.getSide() == Side.BUY) {
             matchBids(taker, true);
         } else {
             matchAsks(taker, true);
         }
+
         if (!taker.isFilled()) {
+            if (taker.getTimeInForce() == TimeInForce.IOC
+                    || taker.getTimeInForce() == TimeInForce.FOK) return;
             addToBook(taker);
         }
     }
 
     private void processMarket(Order taker) {
+        if (taker.getTimeInForce() == TimeInForce.FOK) {
+            long available = taker.getSide() == Side.BUY
+                    ? totalAskQuantity() : totalBidQuantity();
+            if (available < taker.getQuantity()) return;
+        }
+
         if (taker.getSide() == Side.BUY) {
             matchBids(taker, false);
         } else {
@@ -129,11 +130,67 @@ public class OrderBook {
         Order existing = orderMap.get(orderId);
         if (existing == null) return;
 
-        Side side = existing.getSide();
-        long oldPrice = existing.getPrice();
+        if (existing.getPrice() == newPrice) {
+            existing.setQuantity(newQuantity);
+        } else {
+            Side side = existing.getSide();
+            processCancel(orderId);
+            processLimit(new Order(orderId, side, newPrice, newQuantity,
+                    System.nanoTime(), existing.getTimeInForce(),
+                    existing.getExpiryTimestamp()));
+        }
+    }
 
-        processCancel(orderId);
-        processLimit(new Order(orderId, side, newPrice, newQuantity, System.nanoTime()));
+    // --- Order expiry ---
+
+    public int expireOrders(long currentTimeNanos) {
+        List<Long> toExpire = new ArrayList<>();
+        for (Order order : orderMap.values()) {
+            if (order.getTimeInForce() == TimeInForce.GTD
+                    && order.getExpiryTimestamp() <= currentTimeNanos) {
+                toExpire.add(order.getOrderId());
+            }
+        }
+        for (long id : toExpire) {
+            processCancel(id);
+        }
+        return toExpire.size();
+    }
+
+    // --- Query helpers ---
+
+    private long totalAskQuantity() {
+        long total = 0;
+        for (PriceLevel level : asks.values()) {
+            total += level.totalQuantity();
+        }
+        return total;
+    }
+
+    private long totalBidQuantity() {
+        long total = 0;
+        for (PriceLevel level : bids.values()) {
+            total += level.totalQuantity();
+        }
+        return total;
+    }
+
+    private long totalAskQuantityUpTo(long price) {
+        long total = 0;
+        for (Map.Entry<Long, PriceLevel> e : asks.entrySet()) {
+            if (e.getKey() > price) break;
+            total += e.getValue().totalQuantity();
+        }
+        return total;
+    }
+
+    private long totalBidQuantityDownTo(long price) {
+        long total = 0;
+        for (Map.Entry<Long, PriceLevel> e : bids.entrySet()) {
+            if (e.getKey() < price) break;
+            total += e.getValue().totalQuantity();
+        }
+        return total;
     }
 
     // --- Query methods ---

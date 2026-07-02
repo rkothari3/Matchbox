@@ -270,4 +270,212 @@ class OrderBookTest {
         assertEquals(4, top.askQuantity());
         assertEquals(1, book.orderCount());
     }
+
+    // --- Stage 2: Modify-in-place preserves time priority ---
+
+    @Test
+    void modifySamePriceKeepsTimePriority() {
+        OrderCommand cmd1 = OrderCommand.newLimit(Side.BUY, 100, 10);
+        OrderCommand cmd2 = OrderCommand.newLimit(Side.BUY, 100, 10);
+        OrderCommand cmd3 = OrderCommand.newLimit(Side.BUY, 100, 10);
+        book.processOrder(cmd1);
+        book.processOrder(cmd2);
+        book.processOrder(cmd3);
+        long firstId = cmd1.getOrder().getOrderId();
+
+        book.processOrder(OrderCommand.newModify(firstId, 100, 20));
+
+        book.processOrder(OrderCommand.newMarket(Side.SELL, 25));
+        assertEquals(2, book.getTradeLog().size());
+        Trade t1 = book.getTradeLog().get(0);
+        Trade t2 = book.getTradeLog().get(1);
+        assertEquals(20, t1.getQuantity());
+        assertEquals(5, t2.getQuantity());
+        assertEquals(firstId, t1.getMakerOrderId());
+        assertEquals(cmd2.getOrder().getOrderId(), t2.getMakerOrderId());
+    }
+
+    @Test
+    void modifyDifferentPriceLosesTimePriority() {
+        OrderCommand cmd1 = OrderCommand.newLimit(Side.BUY, 99, 10);
+        OrderCommand cmd2 = OrderCommand.newLimit(Side.BUY, 100, 10);
+        book.processOrder(cmd1);
+        book.processOrder(cmd2);
+
+        book.processOrder(OrderCommand.newModify(cmd1.getOrder().getOrderId(), 100, 10));
+
+        TopOfBook top = book.getTopOfBook();
+        assertEquals(100, top.bestBid());
+        assertEquals(20, top.bidQuantity());
+
+        book.processOrder(OrderCommand.newMarket(Side.SELL, 10));
+        Trade t = book.getTradeLog().get(0);
+        assertEquals(cmd2.getOrder().getOrderId(), t.getMakerOrderId());
+    }
+
+    // --- Stage 2: IOC (Immediate-Or-Cancel) ---
+
+    @Test
+    void iocLimitPartialFillCancelsRemainder() {
+        book.processOrder(OrderCommand.newLimit(Side.SELL, 100, 5));
+        book.processOrder(OrderCommand.newLimit(Side.BUY, 100, 10,
+                TimeInForce.IOC, 0));
+        TopOfBook top = book.getTopOfBook();
+        assertEquals(1, book.getTradeLog().size());
+        assertEquals(5, book.getTradeLog().get(0).getQuantity());
+        assertFalse(top.hasBid());
+    }
+
+    @Test
+    void iocLimitNoCrossDoesNotRest() {
+        book.processOrder(OrderCommand.newLimit(Side.BUY, 90, 10,
+                TimeInForce.IOC, 0));
+        TopOfBook top = book.getTopOfBook();
+        assertFalse(top.hasBid());
+        assertTrue(book.getTradeLog().isEmpty());
+    }
+
+    @Test
+    void iocMarketWorksAsRegularMarket() {
+        book.processOrder(OrderCommand.newLimit(Side.SELL, 100, 5));
+        book.processOrder(OrderCommand.newMarket(Side.BUY, 3,
+                TimeInForce.IOC, 0));
+        assertEquals(1, book.getTradeLog().size());
+        assertEquals(3, book.getTradeLog().get(0).getQuantity());
+        TopOfBook top = book.getTopOfBook();
+        assertEquals(100, top.bestAsk());
+        assertEquals(2, top.askQuantity());
+    }
+
+    // --- Stage 2: FOK (Fill-Or-Kill) ---
+
+    @Test
+    void fokLimitInsufficientLiquidityNoFill() {
+        book.processOrder(OrderCommand.newLimit(Side.SELL, 100, 5));
+        book.processOrder(OrderCommand.newLimit(Side.BUY, 100, 10,
+                TimeInForce.FOK, 0));
+        assertTrue(book.getTradeLog().isEmpty());
+        assertEquals(1, book.orderCount());
+    }
+
+    @Test
+    void fokLimitSufficientLiquidityFills() {
+        book.processOrder(OrderCommand.newLimit(Side.SELL, 100, 5));
+        book.processOrder(OrderCommand.newLimit(Side.SELL, 101, 5));
+        book.processOrder(OrderCommand.newLimit(Side.BUY, 101, 10,
+                TimeInForce.FOK, 0));
+        assertEquals(2, book.getTradeLog().size());
+        assertEquals(5, book.getTradeLog().get(0).getQuantity());
+        assertEquals(5, book.getTradeLog().get(1).getQuantity());
+        assertFalse(book.getTopOfBook().hasBid());
+        assertFalse(book.getTopOfBook().hasAsk());
+    }
+
+    @Test
+    void fokLimitPartialPriceDepthFillsFully() {
+        book.processOrder(OrderCommand.newLimit(Side.SELL, 100, 5));
+        book.processOrder(OrderCommand.newLimit(Side.SELL, 101, 5));
+        book.processOrder(OrderCommand.newLimit(Side.BUY, 100, 10,
+                TimeInForce.FOK, 0));
+        assertTrue(book.getTradeLog().isEmpty());
+        assertEquals(2, book.orderCount());
+    }
+
+    @Test
+    void fokMarketInsufficientLiquidityNoFill() {
+        book.processOrder(OrderCommand.newLimit(Side.SELL, 100, 5));
+        book.processOrder(OrderCommand.newMarket(Side.BUY, 10,
+                TimeInForce.FOK, 0));
+        assertTrue(book.getTradeLog().isEmpty());
+        assertEquals(1, book.orderCount());
+    }
+
+    @Test
+    void fokMarketSufficientLiquidityFills() {
+        book.processOrder(OrderCommand.newLimit(Side.SELL, 100, 5));
+        book.processOrder(OrderCommand.newLimit(Side.SELL, 101, 5));
+        book.processOrder(OrderCommand.newMarket(Side.BUY, 10,
+                TimeInForce.FOK, 0));
+        assertEquals(2, book.getTradeLog().size());
+        assertFalse(book.getTopOfBook().hasBid());
+        assertFalse(book.getTopOfBook().hasAsk());
+    }
+
+    // --- Stage 2: GTD (Good-Till-Date) expiry ---
+
+    @Test
+    void gtdOrderExpires() {
+        book.processOrder(OrderCommand.newLimit(Side.BUY, 100, 10,
+                TimeInForce.GTD, 1000L));
+        assertEquals(1, book.orderCount());
+        int expired = book.expireOrders(1001L);
+        assertEquals(1, expired);
+        assertEquals(0, book.orderCount());
+        assertFalse(book.getTopOfBook().hasBid());
+    }
+
+    @Test
+    void gtdOrderNotExpiredBeforeExpiry() {
+        book.processOrder(OrderCommand.newLimit(Side.BUY, 100, 10,
+                TimeInForce.GTD, 1000L));
+        int expired = book.expireOrders(999L);
+        assertEquals(0, expired);
+        assertEquals(1, book.orderCount());
+    }
+
+    @Test
+    void gtdOrderExpiresAtExactTime() {
+        book.processOrder(OrderCommand.newLimit(Side.BUY, 100, 10,
+                TimeInForce.GTD, 1000L));
+        int expired = book.expireOrders(1000L);
+        assertEquals(1, expired);
+    }
+
+    @Test
+    void gtcOrderNeverExpires() {
+        book.processOrder(OrderCommand.newLimit(Side.BUY, 100, 10,
+                TimeInForce.GTC, 0));
+        int expired = book.expireOrders(Long.MAX_VALUE);
+        assertEquals(0, expired);
+        assertEquals(1, book.orderCount());
+    }
+
+    @Test
+    void gtdMultipleOrdersExpireSelectively() {
+        book.processOrder(OrderCommand.newLimit(Side.BUY, 100, 10,
+                TimeInForce.GTD, 500L));
+        book.processOrder(OrderCommand.newLimit(Side.BUY, 99, 10,
+                TimeInForce.GTD, 1500L));
+        book.processOrder(OrderCommand.newLimit(Side.BUY, 98, 10,
+                TimeInForce.GTC, 0));
+        assertEquals(3, book.orderCount());
+
+        int expired = book.expireOrders(1000L);
+        assertEquals(1, expired);
+        assertEquals(2, book.orderCount());
+        assertEquals(99, book.getTopOfBook().bestBid());
+    }
+
+    @Test
+    void gtdOrderExpiresAfterPartialFill() {
+        book.processOrder(OrderCommand.newLimit(Side.SELL, 100, 10));
+        OrderCommand buy = OrderCommand.newLimit(Side.BUY, 100, 20,
+                TimeInForce.GTD, 1000L);
+        book.processOrder(buy);
+        assertEquals(1, book.getTradeLog().size());
+        assertEquals(1, book.orderCount());
+
+        int expired = book.expireOrders(1001L);
+        assertEquals(1, expired);
+        assertEquals(0, book.orderCount());
+    }
+
+    @Test
+    void modifyOrderTracksFilledQuantity() {
+        book.processOrder(OrderCommand.newLimit(Side.SELL, 100, 10));
+        OrderCommand cmd = OrderCommand.newLimit(Side.BUY, 100, 10);
+        book.processOrder(cmd);
+        assertEquals(10, cmd.getOrder().getFilledQuantity());
+        assertTrue(cmd.getOrder().isFilled());
+    }
 }
