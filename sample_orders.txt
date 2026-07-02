@@ -1,0 +1,19 @@
+# Sample order stream for CliRepl
+LIMIT SELL 10100 50
+LIMIT SELL 10150 100
+LIMIT SELL 10200 75
+LIMIT BUY 10000 50
+LIMIT BUY 9900 100
+LIMIT BUY 9800 75
+
+# Print depth
+LIMIT BUY 10100 25
+
+# Cancel an order
+CANCEL 3
+
+# Modify 
+MODIFY 4 10100 100
+
+# Market order
+MARKET BUY 30
