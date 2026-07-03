@@ -16,8 +16,8 @@ namespace matchbox {
 
 // Orders the price ladder so the best price is always begin(): bids descend
 // (highest first), asks ascend (lowest first). A single comparator type (with
-// a direction flag) lets both sides share one map type, mirroring Java's two
-// TreeMaps that differ only by comparator.
+// a direction flag) lets both sides share one map type, differing only in
+// comparator direction.
 struct PriceComparator {
     bool descending = false;
     bool operator()(long a, long b) const { return descending ? a > b : a < b; }

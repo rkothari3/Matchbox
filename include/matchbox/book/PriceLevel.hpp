@@ -9,10 +9,10 @@ namespace matchbox {
 
 // A single price rung: a FIFO queue of orders enforcing time priority.
 //
-// std::deque mirrors Java's ArrayDeque — O(1) push_back / pop_front / front,
-// which is all the hot path (add new order, take best-priority order) needs.
-// Cancel of an interior order is a linear scan (same as ArrayDeque.remove);
-// see the README note on the intrusive-list O(1)-cancel optimization.
+// std::deque gives O(1) push_back / pop_front / front, which is all the hot
+// path (add new order, take best-priority order) needs. Cancel of an interior
+// order is a linear scan; see the README note on the intrusive-list
+// O(1)-cancel optimization.
 class PriceLevel {
 public:
     explicit PriceLevel(long price) : price_(price) {}

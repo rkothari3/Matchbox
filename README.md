@@ -5,9 +5,8 @@ price-time priority, written in modern C++20. It models the exchange-side
 matching logic that sits behind simulated markets like **IMC Prosperity** —
 the black box every competitor trades against. This project *is* that black box.
 
-> Originally prototyped in Java, then rewritten in C++ for tighter control over
-> memory layout and latency. The build is CMake; tests use GoogleTest and
-> benchmarks use Google Benchmark (the C++ analog of Java's JMH).
+> Built for tight control over memory layout and latency. The build is CMake;
+> tests use GoogleTest and benchmarks use Google Benchmark.
 
 ## Features
 
@@ -59,14 +58,13 @@ Each side of the book is a `std::map<long, PriceLevel>` (a red-black tree)
 keyed by price. Bids use a descending comparator and asks an ascending one, so
 the **best price is always `begin()`** and sweeping walks levels in price order.
 A single `PriceComparator` functor with a `descending` flag lets both sides
-share one map type — the direct C++ analog of Java's two `TreeMap`s that differ
-only by comparator.
+share one map type, differing only in comparator direction.
 
 Within a price level, orders sit in a `std::deque<std::shared_ptr<Order>>` FIFO,
 which enforces time priority: new orders `push_back`, the matcher takes from the
 front. Orders are shared (`shared_ptr`) between the level's queue and an
-`unordered_map<id, Order>` used for O(1) cancel/modify lookup — mirroring the
-Java model where one object lived in both the deque and the hash map.
+`unordered_map<id, Order>` used for O(1) cancel/modify lookup, so one object
+lives in both the deque and the hash map.
 
 Alternatives considered:
 

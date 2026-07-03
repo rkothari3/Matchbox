@@ -11,11 +11,11 @@ namespace matchbox {
 // partial fills; every other field is fixed at construction.
 //
 // Orders are shared (std::shared_ptr) between the price-level FIFO queue and
-// the id->order lookup map, mirroring Java's object-reference semantics where
-// the same Order instance lives in both the ArrayDeque and the HashMap.
+// the id->order lookup map, so the same Order instance lives in both the
+// per-level deque and the id hash map.
 class Order {
 public:
-    // Auto-assign the next id (mirrors Java's static AtomicLong ID_GEN).
+    // Auto-assign the next id from the shared atomic counter.
     Order(Side side, long price, long quantity,
           TimeInForce timeInForce = TimeInForce::GTC, long expiryTimestamp = 0);
 

@@ -12,7 +12,7 @@ namespace {
 // The p-th percentile of the per-repetition samples Google Benchmark collects
 // (one aggregate per --benchmark_repetitions run). ComputeStatistics takes a
 // plain function pointer, so we expose fixed p50/p99/p999 entry points that
-// delegate here. This surfaces tail latency the way JMH's SampleTime does.
+// delegate here. This surfaces p50/p99/p999 tail latency in nanoseconds.
 double percentile(const std::vector<double>& v, double p) {
     if (v.empty()) return 0.0;
     std::vector<double> s(v);

@@ -15,9 +15,9 @@ using namespace matchbox;
 
 namespace {
 
-// Read a file into lines split on '\n', matching Java's Files.readAllLines
-// (a trailing "\n\n" yields a final empty line; a single trailing "\n" does not).
-std::vector<std::string> readAllLines(const std::filesystem::path& path) {
+// Read a file into lines split on '\n' (a trailing "\n\n" yields a final empty
+// line; a single trailing "\n" does not).
+std::vector<std::string> readLines(const std::filesystem::path& path) {
     std::ifstream in(path);
     std::vector<std::string> lines;
     std::string line;
@@ -53,7 +53,7 @@ TEST_F(PersistenceTest, TradeLoggerCreatesHeaderOnNewFile) {
         CsvTradeLogger logger(file);
         logger.appendTrade(Trade{100, 10, 1000L, 1L, 2L});
     }
-    auto lines = readAllLines(file);
+    auto lines = readLines(file);
     ASSERT_EQ(2u, lines.size());
     EXPECT_EQ("timestamp,price,quantity,makerOrderId,takerOrderId", lines[0]);
     EXPECT_TRUE(startsWith(lines[1], "1000,100,10,1,2"));
@@ -66,7 +66,7 @@ TEST_F(PersistenceTest, TradeLoggerAppendsMultipleTrades) {
         logger.appendTrade(Trade{100, 5, 1000L, 1L, 2L});
         logger.appendTrade(Trade{101, 3, 2000L, 3L, 4L});
     }
-    auto lines = readAllLines(file);
+    auto lines = readLines(file);
     ASSERT_EQ(3u, lines.size());
     EXPECT_TRUE(contains(lines[1], ",100,5,1,2"));
     EXPECT_TRUE(contains(lines[2], ",101,3,3,4"));
@@ -82,7 +82,7 @@ TEST_F(PersistenceTest, TradeLoggerReusesExistingFileWithoutDuplicateHeader) {
         CsvTradeLogger logger2(file);
         logger2.appendTrade(Trade{101, 3, 2000L, 3L, 4L});
     }
-    auto lines = readAllLines(file);
+    auto lines = readLines(file);
     ASSERT_EQ(3u, lines.size());
     EXPECT_EQ("timestamp,price,quantity,makerOrderId,takerOrderId", lines[0]);
 }
@@ -93,7 +93,7 @@ TEST_F(PersistenceTest, SnapshotWriterCreatesHeaderOnNewFile) {
         BookSnapshotWriter writer(file);
         writer.writeSnapshot(1000L, TopOfBook::empty(), {}, {});
     }
-    auto lines = readAllLines(file);
+    auto lines = readLines(file);
     ASSERT_EQ(3u, lines.size());
     EXPECT_EQ("side,price,quantity,orderCount", lines[0]);
     EXPECT_TRUE(startsWith(lines[1], "# snapshot_time=1000"));
@@ -107,7 +107,7 @@ TEST_F(PersistenceTest, SnapshotWriterRecordsBidsAndAsks) {
                              {BookDepthEntry{100, 20, 2}},
                              {BookDepthEntry{101, 15, 1}});
     }
-    auto lines = readAllLines(file);
+    auto lines = readLines(file);
     EXPECT_EQ("side,price,quantity,orderCount", lines[0]);
     EXPECT_TRUE(contains(lines[1], "bestBid=100,bestAsk=101"));
     EXPECT_TRUE(contains(lines[2], "B,100,20,2"));
@@ -131,12 +131,12 @@ TEST_F(PersistenceTest, EndToEndPersistenceWorkflow) {
                                  book.getBidDepth(), book.getAskDepth());
     }
 
-    auto tradeLines = readAllLines(tradeFile);
+    auto tradeLines = readLines(tradeFile);
     ASSERT_EQ(2u, tradeLines.size());
     EXPECT_EQ("timestamp,price,quantity,makerOrderId,takerOrderId", tradeLines[0]);
     EXPECT_TRUE(contains(tradeLines[1], ",100,8,"));
 
-    auto snapLines = readAllLines(snapFile);
+    auto snapLines = readLines(snapFile);
     EXPECT_TRUE(contains(snapLines[0], "side"));
     EXPECT_TRUE(contains(snapLines[2], "A,100,2"));
     EXPECT_TRUE(contains(snapLines[3], "A,101,5"));
@@ -148,7 +148,7 @@ TEST_F(PersistenceTest, TopOfBookEmptyEncodedCorrectly) {
         BookSnapshotWriter writer(file);
         writer.writeSnapshot(5000L, TopOfBook::empty(), {}, {});
     }
-    auto lines = readAllLines(file);
+    auto lines = readLines(file);
     const std::string& header = lines[1];
     EXPECT_TRUE(contains(header, "bestBid=0"));
     EXPECT_TRUE(contains(header, "bestAsk=0"));
