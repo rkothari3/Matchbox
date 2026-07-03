@@ -39,6 +39,10 @@ target_link_libraries(matchbox_bench PRIVATE matchbox benchmark::benchmark)
 add_executable(matchbox_throughput bench/ThroughputTest.cpp)
 target_link_libraries(matchbox_throughput PRIVATE matchbox)
 
+# --- Interactive CLI ---------------------------------------------------------
+add_executable(matchbox_cli src/cli/CliRepl.cpp)
+target_link_libraries(matchbox_cli PRIVATE matchbox)
+
 # --- Tests (GoogleTest via FetchContent) -------------------------------------
 FetchContent_Declare(
     googletest
