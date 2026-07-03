@@ -1,12 +1,17 @@
-target/
-*.class
-*.jar
-*.log
+# C++ build output
+build/
+cmake-build-*/
+
+# Editors / IDEs
 .idea/
-*.iml
-.settings/
-.project
-.classpath
 .vscode/
+*.user
+
+# Generated benchmark / run artifacts
 benchmark-results.json
-dependency-reduced-pom.xml
+*.log
+trades.csv
+snapshots.csv
+
+# OS
+.DS_Store
