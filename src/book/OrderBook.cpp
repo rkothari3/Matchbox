@@ -22,23 +22,43 @@ void OrderBook::processOrder(const OrderCommand& cmd) {
             processCancel(cmd.cancelOrderId());
             break;
         case OrderType::MODIFY:
-            // Introduced in Stage 2 (order lifecycle).
+            processModify(cmd.cancelOrderId(), cmd.modifyPrice(), cmd.modifyQuantity());
             break;
     }
 }
 
 void OrderBook::processLimit(const std::shared_ptr<Order>& taker) {
+    // Fill-Or-Kill: reject up front unless the crossable depth covers it in full.
+    if (taker->timeInForce() == TimeInForce::FOK) {
+        long available = taker->side() == Side::BUY
+                             ? totalAskQuantityUpTo(taker->price())
+                             : totalBidQuantityDownTo(taker->price());
+        if (available < taker->quantity()) return;
+    }
+
     if (taker->side() == Side::BUY) {
         matchAgainstBook(*taker, asks_, true);
     } else {
         matchAgainstBook(*taker, bids_, true);
     }
+
     if (!taker->isFilled()) {
+        // IOC/FOK never rest: cancel whatever did not cross immediately.
+        if (taker->timeInForce() == TimeInForce::IOC ||
+            taker->timeInForce() == TimeInForce::FOK) {
+            return;
+        }
         addToBook(taker);
     }
 }
 
 void OrderBook::processMarket(const std::shared_ptr<Order>& taker) {
+    if (taker->timeInForce() == TimeInForce::FOK) {
+        long available = taker->side() == Side::BUY ? totalAskQuantity()
+                                                    : totalBidQuantity();
+        if (available < taker->quantity()) return;
+    }
+
     if (taker->side() == Side::BUY) {
         matchAgainstBook(*taker, asks_, false);
     } else {
@@ -104,6 +124,68 @@ void OrderBook::processCancel(long orderId) {
         levelIt->second.remove(order);
         if (levelIt->second.isEmpty()) book.erase(levelIt);
     }
+}
+
+void OrderBook::processModify(long orderId, long newPrice, long newQuantity) {
+    auto it = orderMap_.find(orderId);
+    if (it == orderMap_.end()) return;
+    std::shared_ptr<Order> existing = it->second;
+
+    if (existing->price() == newPrice) {
+        // Same price: resize in place, keeping the order's time priority.
+        existing->setQuantity(newQuantity);
+    } else {
+        // New price: cancel-replace. The re-inserted order loses time
+        // priority (fresh entry time) and may cross on its way in.
+        Side side = existing->side();
+        TimeInForce tif = existing->timeInForce();
+        long expiry = existing->expiryTimestamp();
+        processCancel(orderId);
+        processLimit(std::make_shared<Order>(orderId, side, newPrice, newQuantity,
+                                             nowNanos(), tif, expiry));
+    }
+}
+
+int OrderBook::expireOrders(long currentTimeNanos) {
+    std::vector<long> toExpire;
+    for (const auto& [id, order] : orderMap_) {
+        if (order->timeInForce() == TimeInForce::GTD &&
+            order->expiryTimestamp() <= currentTimeNanos) {
+            toExpire.push_back(id);
+        }
+    }
+    for (long id : toExpire) processCancel(id);
+    return static_cast<int>(toExpire.size());
+}
+
+long OrderBook::totalAskQuantity() const {
+    long total = 0;
+    for (const auto& [price, level] : asks_) total += level.totalQuantity();
+    return total;
+}
+
+long OrderBook::totalBidQuantity() const {
+    long total = 0;
+    for (const auto& [price, level] : bids_) total += level.totalQuantity();
+    return total;
+}
+
+long OrderBook::totalAskQuantityUpTo(long price) const {
+    long total = 0;
+    for (const auto& [levelPrice, level] : asks_) {  // ascending
+        if (levelPrice > price) break;
+        total += level.totalQuantity();
+    }
+    return total;
+}
+
+long OrderBook::totalBidQuantityDownTo(long price) const {
+    long total = 0;
+    for (const auto& [levelPrice, level] : bids_) {  // descending
+        if (levelPrice < price) break;
+        total += level.totalQuantity();
+    }
+    return total;
 }
 
 TopOfBook OrderBook::getTopOfBook() const {

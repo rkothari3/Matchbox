@@ -44,6 +44,10 @@ public:
 
     void processOrder(const OrderCommand& cmd);
 
+    // Cancel every resting GTD order whose expiry is at or before `currentTimeNanos`.
+    // Returns how many were expired.
+    int expireOrders(long currentTimeNanos);
+
     // --- Queries ---
     TopOfBook getTopOfBook() const;
     std::vector<BookDepthEntry> getBidDepth() const;
@@ -56,6 +60,13 @@ private:
     void processLimit(const std::shared_ptr<Order>& taker);
     void processMarket(const std::shared_ptr<Order>& taker);
     void processCancel(long orderId);
+    void processModify(long orderId, long newPrice, long newQuantity);
+
+    // Liquidity available to a taker, used for FOK all-or-nothing pre-checks.
+    long totalAskQuantity() const;
+    long totalBidQuantity() const;
+    long totalAskQuantityUpTo(long price) const;   // asks at or below a buy limit
+    long totalBidQuantityDownTo(long price) const;  // bids at or above a sell limit
 
     // Cross `taker` against `book` (asks for a buy, bids for a sell), stopping
     // at the price limit when isLimit is true; false = market (sweep freely).
