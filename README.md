@@ -98,18 +98,20 @@ with no schema coupling.
 Measured on an 8-core WSL2 box (2995 MHz, L3 24 MiB), Release build.
 Latency percentiles are computed by Google Benchmark over 100 repetitions.
 
-| Operation | p50 | p99 | p999 |
-|---|---|---|---|
-| Add limit (into a 20k-order book) | ~295 ns | ~376 ns | ~566 ns |
-| Match market (1 fill + level pop) | ~88 ns | ~106 ns | ~109 ns |
-| Cancel (id lookup + level removal) | ~267 ns | ~345 ns | ~348 ns |
+| Operation | p50 | p99 | p999 | mean |
+|---|---|---|---|---|
+| Add limit (into a 20k-order book) | ~473 ns | ~614 ns | ~872 ns | ~482 ns |
+| Match market (1 fill + level pop) | ~146 ns | ~166 ns | ~177 ns | ~147 ns |
+| Cancel (id lookup + level removal) | ~309 ns | ~404 ns | ~418 ns | ~314 ns |
 
-**Throughput:** ~3.2M orders/sec sustained on a mixed workload (≈78% limits,
+**Throughput:** ~2.1M orders/sec sustained on a mixed workload (≈78% limits,
 ≈22% markets) over a 3-second measured window after a 1-second warmup.
 
 > Methodology note: these percentiles are over per-repetition aggregates, so
 > they characterize typical and near-tail latency rather than the extreme tail
-> of individual operations. Absolute numbers vary with machine and load.
+> of individual operations. Absolute numbers vary with machine and load — this
+> run was under moderate load (~2.2); a less-loaded machine measures roughly
+> 1.5× faster.
 
 ## What I'd optimize next
 
