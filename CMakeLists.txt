@@ -21,8 +21,25 @@ add_library(matchbox
 target_include_directories(matchbox PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_compile_options(matchbox PRIVATE -Wall -Wextra)
 
-# --- Tests (GoogleTest via FetchContent) -------------------------------------
 include(FetchContent)
+
+# --- Benchmarks (Google Benchmark via FetchContent) --------------------------
+FetchContent_Declare(
+    benchmark
+    GIT_REPOSITORY https://github.com/google/benchmark.git
+    GIT_TAG v1.9.1
+)
+set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(benchmark)
+
+add_executable(matchbox_bench bench/OrderBookBenchmark.cpp)
+target_link_libraries(matchbox_bench PRIVATE matchbox benchmark::benchmark)
+
+add_executable(matchbox_throughput bench/ThroughputTest.cpp)
+target_link_libraries(matchbox_throughput PRIVATE matchbox)
+
+# --- Tests (GoogleTest via FetchContent) -------------------------------------
 FetchContent_Declare(
     googletest
     GIT_REPOSITORY https://github.com/google/googletest.git
