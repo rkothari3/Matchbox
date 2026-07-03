@@ -15,6 +15,8 @@ add_library(matchbox
     src/core/Order.cpp
     src/book/PriceLevel.cpp
     src/book/OrderBook.cpp
+    src/io/CsvTradeLogger.cpp
+    src/io/BookSnapshotWriter.cpp
 )
 target_include_directories(matchbox PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_compile_options(matchbox PRIVATE -Wall -Wextra)
@@ -33,6 +35,7 @@ enable_testing()
 add_executable(matchbox_tests
     test/OrderBookTest.cpp
     test/OrderLifecycleTest.cpp
+    test/PersistenceTest.cpp
 )
 target_link_libraries(matchbox_tests PRIVATE matchbox GTest::gtest_main)
 
