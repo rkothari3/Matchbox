@@ -32,6 +32,7 @@ FetchContent_MakeAvailable(googletest)
 enable_testing()
 add_executable(matchbox_tests
     test/OrderBookTest.cpp
+    test/OrderLifecycleTest.cpp
 )
 target_link_libraries(matchbox_tests PRIVATE matchbox GTest::gtest_main)
 
