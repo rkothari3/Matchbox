@@ -39,6 +39,16 @@ target_link_libraries(matchbox_bench PRIVATE matchbox benchmark::benchmark)
 add_executable(matchbox_throughput bench/ThroughputTest.cpp)
 target_link_libraries(matchbox_throughput PRIVATE matchbox)
 
+# --- Networking: TCP order-entry gateway, client, and round-trip benchmark -----
+add_executable(matchbox_gateway src/net/Gateway.cpp)
+target_link_libraries(matchbox_gateway PRIVATE matchbox)
+
+add_executable(matchbox_client src/net/OrderClient.cpp)
+target_link_libraries(matchbox_client PRIVATE matchbox)
+
+add_executable(matchbox_netbench bench/NetBenchmark.cpp)
+target_link_libraries(matchbox_netbench PRIVATE matchbox)
+
 # --- Interactive CLI ---------------------------------------------------------
 add_executable(matchbox_cli src/cli/CliRepl.cpp)
 target_link_libraries(matchbox_cli PRIVATE matchbox)
